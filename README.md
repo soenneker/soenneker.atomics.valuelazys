@@ -2,36 +2,33 @@
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.atomics.valuelazys/publish-package.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.atomics.valuelazys/actions/workflows/publish-package.yml)
 [![](https://img.shields.io/nuget/dt/soenneker.atomics.valuelazys.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.atomics.valuelazys/)
 
-# ![](https://user-images.githubusercontent.com/4441470/224455560-91ed3ee7-f510-4041-a8d2-3fc093025112.png) Soenneker.Atomics.ValueLazys
-### Thread-safe lazy initialization without Lazy wrapper allocations.
+# Soenneker.Atomics.ValueLazys
 
-## Installation
+Provides inline lazy storage for a non-null reference value without allocating a `Lazy{T}` wrapper.
 
-```
+## Install
+
+```bash
 dotnet add package Soenneker.Atomics.ValueLazys
 ```
 
-## Usage
+## What you get
 
-```csharp
-using Soenneker.Atomics.ValueLazys;
-using Soenneker.Atomics.ValueLocks;
+- `ValueLazy<T>` — Provides inline lazy storage for a non-null reference value without allocating a `Lazy{T}` wrapper.
 
-public sealed class Service
-{
-    private ValueLazy<Client> _client;
-    private ValueAtomicLock _initializationLock;
+## API at a glance
 
-    public Client GetClient() =>
-        _client.GetOrCreate(ref _initializationLock, this,
-            static service => new Client(service.GetConnectionString()));
-}
-```
+| API | What it does | Result / important behavior |
+| --- | --- | --- |
+| `ValueLazy<T>.IsValueCreated` | Gets a value indicating whether initialization has completed successfully. | Gets a value indicating whether initialization has completed successfully. |
+| `ValueLazy<T>.TryGetValue(value)` | Attempts to read the initialized value without invoking a factory. | true if the requested update was applied; otherwise, false. |
+| `ValueLazy<T>.GetOrCreate(sync, factory)` | Gets the initialized value or invokes `factory` exactly once using execution-and-publication semantics. | The requested value. |
+| `ValueLazy<T>.GetOrCreate(sync, state, factory)` | Gets the initialized value or invokes `factory` exactly once using execution-and-publication semantics. Supplying state allows callers to use a static factory and avoid a closure allocation. | The requested value. |
+| `ValueLazy<T>.GetOrCreateUnsafe(factory)` | Gets or creates the value without locking. This method is only safe when the caller provides external synchronization or guarantees single-threaded access. | The requested value. |
+| `ValueLazy<T>.GetOrCreateUnsafe(state, factory)` | Gets or creates the value without locking. Supplying state allows callers to use a static factory and avoid a closure allocation. | The requested value. |
+| `ValueLazy<T>.GetOrCreatePublicationOnly(factory)` | Gets the initialized value or atomically publishes one factory result. During a race the factory may run more than once, but every caller receives the single published value. | The requested value. |
+| `ValueLazy<T>.GetOrCreatePublicationOnly(state, factory)` | Gets the initialized value or atomically publishes one factory result. Supplying state allows callers to use a static factory and avoid a closure allocation. | The requested value. |
 
-`ValueLazy<T>` occupies one reference-sized field. Several lazy fields on an owner can share one `ValueAtomicLock`, avoiding the wrapper, factory closure, and synchronization object normally allocated for every `Lazy<T>`.
+## Important behavior
 
-- `GetOrCreate` provides execution-and-publication semantics.
-- `GetOrCreatePublicationOnly` may run the factory concurrently but atomically publishes one result.
-- `GetOrCreateUnsafe` performs no synchronization.
-
-The factory must return a non-null value. Use `Soenneker.Atomics.ValueNullableLazys` when `null` is a valid initialized result.
+- `ValueLazy<T>`: The default value is ready to use and occupies one reference-sized field. A `ValueAtomicLock` can be shared by several lazy fields on the same owner, avoiding a separate synchronization object for every value. This is a mutable `struct` intended for use as a private field. Avoid copying it because each copy has independent initialization state. Exceptions thrown by a factory are not cached, and a later call may retry initialization.
