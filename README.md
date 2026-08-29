@@ -12,6 +12,32 @@ Provides inline lazy storage for a non-null reference value without allocating a
 dotnet add package Soenneker.Atomics.ValueLazys
 ```
 
+## Usage
+
+Store both mutable structs as fields and pass the lock by reference:
+
+```csharp
+using System.Text.RegularExpressions;
+using Soenneker.Atomics.ValueLazys;
+using Soenneker.Atomics.ValueLocks;
+
+public sealed class InputValidator
+{
+    private ValueAtomicLock _sync;
+    private ValueLazy<Regex> _pattern;
+
+    public Regex Pattern => _pattern.GetOrCreate(
+        ref _sync,
+        static () => new Regex("^[a-z0-9-]+$"));
+}
+```
+
+`GetOrCreate` provides execution-and-publication: one caller runs the factory while competitors wait on the supplied lock. Exceptions are not cached, so a later call retries.
+
+`GetOrCreatePublicationOnly` avoids the lock but may run the factory concurrently several times; only one non-null reference wins publication. Use it only when duplicate construction is safe and abandoned candidates need no disposal. `GetOrCreateUnsafe` requires external synchronization or single-threaded access.
+
+Do not copy `ValueLazy<T>` or the accompanying `ValueAtomicLock`. Copies establish independent storage or lock domains and defeat initialization coordination.
+
 ## What you get
 
 - `ValueLazy<T>` — Provides inline lazy storage for a non-null reference value without allocating a `Lazy{T}` wrapper.
