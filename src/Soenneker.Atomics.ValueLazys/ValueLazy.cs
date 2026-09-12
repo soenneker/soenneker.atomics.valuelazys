@@ -57,6 +57,10 @@ public struct ValueLazy<T> where T : class
     public T GetOrCreate(ref ValueAtomicLock sync, Func<T> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
+        T? value = Volatile.Read(ref _value);
+        if (value is not null)
+            return value;
+
         return GetOrCreate(ref sync, factory, static valueFactory => valueFactory());
     }
 
@@ -86,6 +90,10 @@ public struct ValueLazy<T> where T : class
     public T GetOrCreateUnsafe(Func<T> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
+        T? value = _value;
+        if (value is not null)
+            return value;
+
         return GetOrCreateUnsafe(factory, static valueFactory => valueFactory());
     }
 
@@ -113,6 +121,10 @@ public struct ValueLazy<T> where T : class
     public T GetOrCreatePublicationOnly(Func<T> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
+        T? value = Volatile.Read(ref _value);
+        if (value is not null)
+            return value;
+
         return GetOrCreatePublicationOnly(factory, static valueFactory => valueFactory());
     }
 
