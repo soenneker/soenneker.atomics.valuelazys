@@ -61,7 +61,7 @@ public struct ValueLazy<T> where T : class
         if (value is not null)
             return value;
 
-        return GetOrCreate(ref sync, factory, static valueFactory => valueFactory());
+        return Initialize(ref sync, factory);
     }
 
     /// <summary>
@@ -94,7 +94,7 @@ public struct ValueLazy<T> where T : class
         if (value is not null)
             return value;
 
-        return GetOrCreateUnsafe(factory, static valueFactory => valueFactory());
+        return _value = Create(factory);
     }
 
     /// <summary>
@@ -125,7 +125,8 @@ public struct ValueLazy<T> where T : class
         if (value is not null)
             return value;
 
-        return GetOrCreatePublicationOnly(factory, static valueFactory => valueFactory());
+        T created = Create(factory);
+        return Interlocked.CompareExchange(ref _value, created, null) ?? created;
     }
 
     /// <summary>
@@ -146,6 +147,25 @@ public struct ValueLazy<T> where T : class
         T created = Create(state, factory);
         return Interlocked.CompareExchange(ref _value, created, null) ?? created;
     }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private T Initialize(ref ValueAtomicLock sync, Func<T> factory)
+    {
+        lock (sync.Get())
+        {
+            T? value = _value;
+            if (value is not null)
+                return value;
+
+            value = Create(factory);
+            Volatile.Write(ref _value, value);
+            return value;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static T Create(Func<T> factory) => factory() ?? throw new InvalidOperationException(
+        $"The {nameof(ValueLazy<T>)} factory returned null. Use ValueNullableLazy<T> when null is a valid result.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private T Initialize<TState>(ref ValueAtomicLock sync, TState state, Func<TState, T> factory)

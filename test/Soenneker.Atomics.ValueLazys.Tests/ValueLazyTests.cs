@@ -108,6 +108,23 @@ public sealed class ValueLazyTests : UnitTest
         holder.Value.IsValueCreated.Should().BeFalse();
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void Direct_factory_should_publish_one_result_under_contention(bool publicationOnly)
+    {
+        var holder = new Holder();
+        var values = new Payload[128];
+        Func<Payload> factory = () => new Payload(Interlocked.Increment(ref holder.FactoryCalls));
+        Parallel.For(0, values.Length, i => values[i] = publicationOnly
+            ? holder.Value.GetOrCreatePublicationOnly(factory)
+            : holder.Value.GetOrCreate(ref holder.Sync, factory));
+
+        values.All(value => ReferenceEquals(values[0], value)).Should().BeTrue();
+        if (!publicationOnly)
+            holder.FactoryCalls.Should().Be(1);
+    }
+
     private sealed class Holder
     {
         public ValueLazy<Payload> Value;
